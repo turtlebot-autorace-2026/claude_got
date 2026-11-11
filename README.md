@@ -58,16 +58,21 @@ sudo apt install ros-$ROS_DISTRO-navigation2 ros-$ROS_DISTRO-nav2-bringup ros-$R
 sudo가 없으면 `third_party/install_nav2_nosudo.sh`로 `.deb`를 받아 `third_party/root`에 풀고
 `source third_party/setup_extra.bash`를 실행한다(x86 Humble에서 검증).
 
-> **ROS 배포판 주의**: 이 워크스페이스는 ROS 2 **Humble**에서 개발·검증했다. Python 코드는 3.8 문법과 호환된다.
-> Jetson이 **Galactic**(JetPack 5 / Ubuntu 20.04)이면 Python 노드는 그대로 동작해야 한다.
-> 다만 `mission_tunnel/config/nav2_tunnel.yaml`과 `nav2_tunnel.launch.py`는 Humble 형식이므로 Galactic Nav2에 맞게 바꿔야 한다:
-> `behavior_server` → `recoveries_server`, bt_navigator의 `navigators` 항목 제거, `plugin_lib_names`를 Galactic 기본 파라미터 기준으로 교체.
+> **ROS 배포판**: Jetson 실차는 ROS 2 **Galactic**(JetPack 5 / Ubuntu 20.04 / Python 3.8) 기준이다.
+> 터널 Nav2는 `ROS_DISTRO`를 보고 설정을 자동으로 고른다(`ros_distro:=` 인자로 강제 가능).
+> - galactic: `mission_tunnel/config/nav2_tunnel_galactic.yaml` + `nav2_recoveries/recoveries_server`
+>   (navigation2 galactic 브랜치 기본 파라미터 기준 BT 플러그인 목록·RPP 파라미터 이름)
+> - humble: `nav2_tunnel_humble.yaml` + `nav2_behaviors/behavior_server` (개발 PC 시뮬레이션용)
+>
+> Python 노드는 3.8 문법만 쓰고, Humble에만 있는 rclpy API(`try_shutdown`, `ExternalShutdownException`)는 있을 때만 쓴다.
+> 개발 PC(Humble)에서는 Galactic 설정을 실제로 실행해 보지 못했다. Jetson에서 처음 실행할 때 Nav2 노드 로그를 꼭 확인한다.
 
 ### 2.2 YOLO 추론 환경 (onnxruntime-gpu)
 차선 YOLO는 ONNX 모델(`lane_slam/models/lane_yolo26n_seg.onnx`, 입력 480×640)을 onnxruntime으로 추론한다. torch는 필요 없다.
 - JetPack에 맞는 `onnxruntime-gpu` 휠(Jetson Zoo)을 설치한다. pip의 일반 `onnxruntime`은 CPU 전용이다.
 - TensorRT가 있으면 첫 실행 때 FP16 엔진을 빌드해 `~/.cache/yolo_trt`에 저장한다. 수 분 걸리고, 이후에는 재사용한다.
-- lane_slam을 실행할 파이썬은 launch 인자 `lane_python`으로 지정한다. 시스템 파이썬에 설치했다면 `lane_python:=/usr/bin/python3`.
+- onnxruntime을 시스템 파이썬(`/usr/bin/python3`)에 설치했다면 따로 설정할 것이 없다.
+  다른 venv에 설치했다면 `export AUTORACE_LANE_PYTHON=/경로/venv/bin/python`(또는 launch 인자 `lane_python:=`).
 - GPU를 쓸 수 없으면 `lane_detector:=hsv`(색 임계값 방식)로 바로 대체할 수 있다.
 
 ### 2.3 빌드
@@ -94,23 +99,28 @@ source install/setup.bash
 | HSV 방식 사용 시 | `white_v_min`, `yellow_*` | 조명에 맞게 조정 |
 
 ```bash
-ros2 launch autorace_main race.launch.py use_sim_time:=false debug_images:=true start_mission:=finish  # 인식 노드만 동작(주행 안 함)
+ros2 launch autorace_main race.launch.py debug_images:=true start_mission:=finish  # 인식 노드만 동작(주행 안 함)
 ros2 topic echo /lane_slam/status
 ros2 run rqt_image_view rqt_image_view
 ```
 
 ---
 
-## 4. 1단계: 맵핑 (준비시간에 수행)
+## 4. 1단계: 맵핑 (실제 경기장에서 반드시 새로)
 
-차선맵·경로·터널 LiDAR 맵은 **실제 경기장에서 새로 만든다**. 시뮬레이션 맵은 실물과 차선 간격·카메라 기하가 달라 그대로 쓰지 않는다.
+차선맵·경로·터널 LiDAR 맵은 **실제 경기장에서 새로 만든다**. 저장소에 들어 있는 맵은 시뮬레이션용이라 실차에 쓸 수 없다.
+- 시뮬레이터 맵은 실물과 축척이 다르다(차선 중심 간격: sim 약 286 mm, 실물 bag 기준 약 249 mm).
+- 차선맵은 그 로봇의 카메라 보정값으로 만들어진다. 장착 각도가 조금만 달라도 맵이 어긋난다.
+- 경로는 맵을 만들 때의 SLAM 좌표로 기록되므로, 맵과 경로는 항상 같은 맵핑 주행에서 함께 만들어야 한다.
+- 맵핑 1회(세션 A+B)는 약 5~6분 걸린다. 경기의 준비시간(5분)으로는 빠듯하므로, 연습 주행 시간에 미리 맵핑해 둔다.
+  대회 당일 코스 배치가 바뀌면 그날 다시 맵핑해야 한다.
 - 맵 좌표계(map)의 원점은 **맵핑을 시작할 때 로봇 자세**, 즉 출발선 뒤 출발 위치다. 본 주행도 같은 위치·방향에서 시작해야 한다.
 - 공사구간 장애물과 하우스 로봇은 가능하면 치운 상태에서 맵핑한다(차선이 가려지지 않게).
 
 ```bash
 # 터미널 1: 로봇 bringup + 카메라 (기존 방식)
 # 터미널 2: 맵핑 (차선 SLAM + 경로 기록 + slam_toolbox + LiDAR 맵 정렬)
-ros2 launch autorace_main mapping.launch.py sim_driver:=false use_sim_time:=false lidar:=true
+ros2 launch autorace_main mapping.launch.py lidar:=true
 # 터미널 3: 조종 (차선 중앙을 따라 천천히, 매끄럽게)
 ros2 run turtlebot3_teleop teleop_keyboard
 # 터미널 4: 구간 표시 (각 구간 시작 직전에 실행)
@@ -141,7 +151,7 @@ ros2 run route_follower route_mark start_to_fork 0.2
 ### 세션 B: 오른쪽 갈림길 추가
 로봇을 다시 **출발 위치**에 두고 기존 맵을 확장한다.
 ```bash
-ros2 launch autorace_main mapping.launch.py sim_driver:=false use_sim_time:=false extend_map:=true
+ros2 launch autorace_main mapping.launch.py extend_map:=true
 ros2 run route_follower route_mark pause              # 출발~갈림길은 기록하지 않고 주행
 ros2 run route_follower route_mark fork_right 0.18    # 갈림길 입구에서
 ros2 run route_follower route_mark save
@@ -162,7 +172,7 @@ ros2 run route_follower route_tool set   src/autorace_main/routes/routes.yaml co
 
 로봇을 **맵핑을 시작한 출발 위치·방향**에 놓고 실행한다.
 ```bash
-ros2 launch autorace_main race.launch.py use_sim_time:=false
+ros2 launch autorace_main race.launch.py
 ros2 topic echo /mission/state     # 진행 상황
 ```
 - 미션 매니저는 lane_slam이 준비되면 신호등을 본다. **빨강/노랑을 본 뒤 초록으로 바뀌는 순간** 자동 출발한다.
@@ -205,12 +215,14 @@ ros2 topic echo /mission/state     # 진행 상황
 ```bash
 source ~/gazebo_simenv/autorace_sim_share_20261109/scripts/env.bash
 bash ~/gazebo_simenv/autorace_sim_share_20261109/scripts/run_sim.sh            # GUI 포함
-ros2 launch autorace_main race.launch.py                                        # use_sim_time 기본 true
+export AUTORACE_LANE_PYTHON=~/autorace/yolo_venv/bin/python                     # onnxruntime-gpu가 있는 venv
+ros2 launch autorace_main race.launch.py use_sim_time:=true
 ros2 run autorace_sim_tools race_monitor --ros-args -p use_sim_time:=true       # 심판 이벤트·위치오차·접촉
 ros2 run autorace_sim_tools spawn_house_robot left|right|remove                 # 하우스 로봇 배치
 ```
 시뮬레이션 맵핑에서는 가상 텔레옵(`mapping_driver`)이 Gazebo 정답 자세로 **운전만** 하고, 맵·경로는 차선 SLAM 추정으로 만든다.
-순서: `run_sim.sh referee:=false` → 공사 장애물 삭제 → `mapping.launch.py session:=full_left lidar:=true` → `session:=right_branch extend_map:=true`.
+순서: `run_sim.sh referee:=false` → 공사 장애물 삭제 →
+`mapping.launch.py use_sim_time:=true sim_driver:=true session:=full_left lidar:=true` → 출발점 리셋 → `... session:=right_branch extend_map:=true`.
 
 검증 결과(2026-11-12, YOLO 차선):
 - 출발 → 터널 출구 약 190 s(제한 300 s)

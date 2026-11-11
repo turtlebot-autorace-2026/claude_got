@@ -21,8 +21,10 @@ def main():
     node = rclpy.create_node('route_mark')
     seg = node.create_publisher(String, '/route_recorder/segment', 10)
     save = node.create_publisher(String, '/route_recorder/save', 10)
+    def subs():
+        return seg.get_subscription_count() if hasattr(seg, 'get_subscription_count') else -1
     t0 = time.time()
-    while time.time() - t0 < 1.0 and seg.get_subscription_count() == 0:   # recorder 연결 대기
+    while time.time() - t0 < 1.0 and subs() == 0:   # recorder 연결 대기
         rclpy.spin_once(node, timeout_sec=0.1)
     if a[0] == 'save':
         save.publish(String(data='save'))
@@ -43,7 +45,7 @@ def main():
         msg = json.dumps(d, ensure_ascii=False)
     for _ in range(5):
         rclpy.spin_once(node, timeout_sec=0.05)
-    print('sent', msg, '(recorder 연결:', seg.get_subscription_count(), ')')
+    print('sent', msg, '(recorder 연결:', subs(), ')')
     node.destroy_node()
     rclpy.shutdown()
 

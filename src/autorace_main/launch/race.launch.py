@@ -1,7 +1,7 @@
 """본 주행 런치: 차선맵 위치추정 + 경로추종 + 미션 노드 6종 + 터널 Nav2 + 미션 매니저.
 
-    ros2 launch autorace_main race.launch.py            # 시뮬레이션
-    ros2 launch autorace_main race.launch.py use_sim_time:=false   # 실차
+    ros2 launch autorace_main race.launch.py                       # 실차(Jetson, Galactic)
+    ros2 launch autorace_main race.launch.py use_sim_time:=true    # 시뮬레이션
 """
 import os
 
@@ -30,10 +30,10 @@ def generate_launch_description():
                     parameters=(params or []) + [{'use_sim_time': sim}], **kw)
 
     return LaunchDescription([
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('use_sim_time', default_value='false', description='시뮬레이션이면 true'),
         DeclareLaunchArgument('lane_detector', default_value='yolo', description='yolo | hsv'),
-        DeclareLaunchArgument('lane_python', default_value=os.path.expanduser('~/autorace/yolo_venv/bin/python'),
-                              description='YOLO(onnxruntime-gpu/torch)가 설치된 파이썬. hsv면 무시'),
+        DeclareLaunchArgument('lane_python', default_value=os.environ.get('AUTORACE_LANE_PYTHON', ''),
+                              description='lane_slam을 실행할 파이썬(onnxruntime이 다른 venv에 있을 때). 비우면 기본 파이썬'),
         DeclareLaunchArgument('map_prefix', default_value=os.path.join(d, 'maps', 'lane_map')),
         DeclareLaunchArgument('routes_file', default_value=os.path.join(d, 'routes', 'routes.yaml')),
         DeclareLaunchArgument('lidar_map', default_value=tunnel_map),
@@ -41,6 +41,8 @@ def generate_launch_description():
         DeclareLaunchArgument('start_mission', default_value='traffic_light'),
         DeclareLaunchArgument('debug_images', default_value='false'),
         DeclareLaunchArgument('nav2', default_value='true'),
+        DeclareLaunchArgument('ros_distro', default_value=os.environ.get('ROS_DISTRO', 'galactic'),
+                              description='터널 Nav2 설정 형식: galactic | humble'),
         DeclareLaunchArgument('initial_pose', default_value='[0.0, 0.0, 0.0]',
                               description='map 기준 시작 자세(출발점이면 0). 중간 미션 시험용'),
         Node(package='lane_slam', executable='lane_slam_node', name='lane_slam', output='screen',
@@ -64,7 +66,8 @@ def generate_launch_description():
         node('mission_tunnel', 'tunnel_nav_node', 'tunnel_nav', [{'routes_file': routes}]),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(share('mission_tunnel'), 'launch', 'nav2_tunnel.launch.py')),
-            launch_arguments={'use_sim_time': sim, 'map': LaunchConfiguration('lidar_map')}.items(),
+            launch_arguments={'use_sim_time': sim, 'map': LaunchConfiguration('lidar_map'),
+                              'ros_distro': LaunchConfiguration('ros_distro')}.items(),
             condition=IfCondition(LaunchConfiguration('nav2'))),
         node('autorace_main', 'mission_manager', 'mission_manager',
              [{'routes_file': routes, 'mission_config': LaunchConfiguration('mission_config'),

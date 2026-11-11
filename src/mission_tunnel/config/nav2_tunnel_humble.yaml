@@ -1,4 +1,5 @@
-# 터널 구간 Nav2 파라미터 (AMCL 없음: map→odom TF는 lane_slam(차선+LiDAR 파티클필터)이 발행)
+# 터널 구간 Nav2 파라미터 — ROS 2 Humble 형식 (개발 PC 시뮬레이션)
+# AMCL 없음: map→odom TF는 lane_slam(차선+LiDAR 파티클필터)이 발행
 bt_navigator:
   ros__parameters:
     use_sim_time: true

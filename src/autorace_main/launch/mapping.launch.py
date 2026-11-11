@@ -1,12 +1,11 @@
 """맵핑 단계 런치: 차선 SLAM(맵핑) + 경로 기록기 + (선택) LiDAR SLAM + (sim) 가상 텔레옵.
 
-예) 시뮬레이션 세션 A(전체 코스, LiDAR 맵 포함):
-    ros2 launch autorace_main mapping.launch.py session:=full_left lidar:=true
-    세션 B(오른쪽 갈림길만, 기존 차선맵 확장):
-    ros2 launch autorace_main mapping.launch.py session:=right_branch extend_map:=true
-실차: sim_driver:=false use_sim_time:=false 로 실행하고 텔레옵으로 주행하며
-    ros2 topic pub --once /route_recorder/segment std_msgs/String "data: '{\"name\": \"start_to_fork\", \"speed\": 0.2}'"
-처럼 구간을 표시한다.
+실차(Jetson): 텔레옵으로 주행하며 `ros2 run route_follower route_mark <구간> [속도]`로 구간 표시
+    ros2 launch autorace_main mapping.launch.py lidar:=true                 # 세션 A(전체 코스)
+    ros2 launch autorace_main mapping.launch.py extend_map:=true            # 세션 B(오른쪽 갈림길 추가)
+시뮬레이션(가상 텔레옵):
+    ros2 launch autorace_main mapping.launch.py use_sim_time:=true sim_driver:=true session:=full_left lidar:=true
+    ros2 launch autorace_main mapping.launch.py use_sim_time:=true sim_driver:=true session:=right_branch extend_map:=true
 """
 import os
 
@@ -26,14 +25,14 @@ def generate_launch_description():
     tunnel_share = get_package_share_directory('mission_tunnel')
     lane_cfg = os.path.join(get_package_share_directory('lane_slam'), 'config', 'lane_slam.yaml')
     return LaunchDescription([
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('use_sim_time', default_value='false', description='시뮬레이션이면 true'),
         DeclareLaunchArgument('lane_detector', default_value='yolo', description='yolo | hsv'),
-        DeclareLaunchArgument('lane_python', default_value=os.path.expanduser('~/autorace/yolo_venv/bin/python'),
-                              description='YOLO(onnxruntime-gpu/torch)가 설치된 파이썬. hsv면 무시'),
+        DeclareLaunchArgument('lane_python', default_value=os.environ.get('AUTORACE_LANE_PYTHON', ''),
+                              description='lane_slam을 실행할 파이썬(onnxruntime이 다른 venv에 있을 때). 비우면 기본 파이썬'),
         DeclareLaunchArgument('session', default_value='full_left'),
         DeclareLaunchArgument('extend_map', default_value='false'),
         DeclareLaunchArgument('lidar', default_value='false', description='slam_toolbox로 LiDAR 맵도 생성'),
-        DeclareLaunchArgument('sim_driver', default_value='true', description='sim 가상 텔레옵 사용'),
+        DeclareLaunchArgument('sim_driver', default_value='false', description='시뮬레이션 가상 텔레옵 사용(sim 전용)'),
         DeclareLaunchArgument('map_prefix', default_value=os.path.join(d, 'maps', 'lane_map')),
         DeclareLaunchArgument('routes_file', default_value=os.path.join(d, 'routes', 'routes.yaml')),
         DeclareLaunchArgument('tunnel_map', default_value=os.path.join(d, 'maps', 'tunnel_map')),
