@@ -1,0 +1,10 @@
+resolution: 0.01
+origin:
+- -3.2
+- -0.8
+width: 560
+height: 560
+classes:
+- white
+- yellow
+frame_id: map

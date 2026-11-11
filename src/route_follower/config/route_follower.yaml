@@ -1,0 +1,18 @@
+route_follower:
+  ros__parameters:
+    cmd_topic: /cmd_vel/route
+    lookahead: 0.20          # 전진 Pure Pursuit 전방주시거리[m]
+    lookahead_reverse: 0.15
+    speed: 0.20
+    w_max: 2.2
+    accel: 0.6
+    decel: 0.5
+    curvature_slowdown: 0.12
+    goal_tolerance: 0.03
+    align_angle: 1.0
+    offset_rate: 2.5         # 회피 횡오프셋 변화 한계(주행 1m당)
+    lookahead_avoid: 0.14    # 회피(오프셋) 중 전방주시거리[m]
+    min_speed: 0.04
+    stuck_time: 2.5          # 끼임 판정: 이 시간 동안
+    stuck_dist: 0.02         #   이 거리도 못 가면 → recover_time 동안 후진 후 재정렬
+    recover_time: 1.2

@@ -1,0 +1,13 @@
+# 미션 매니저 설정
+mission:
+  start_mission: traffic_light   # 디버깅 시 중간 미션부터 시작 가능 (intersection, construction, ...)
+  speed_scale: 1.0               # 기록 경로 속도 배율
+  intersection_timeout: 8.0      # 갈림길 앞 이정표 판단 대기 한계[s]
+  parking_hold: 1.0              # 주차칸 안 정지 시간[s]
+  crossing_wait_if_open: 2.0     # 서행 접근 후에도 차단바가 내려오지 않을 때 기다릴 시간[s]
+  crossing_creep_speed: 0.05     # 정지 후 차단바가 그대로면 이 속도로 서행 접근[m/s]
+  crossing_creep_dist: 0.12      # 서행 접근 최대 거리[m] (S2 센서 접촉 방지)
+  crossing_open_confirm: 1.0     # 차단바가 내려온 뒤 열림이 이 시간 이상 유지되면 출발[s]
+  crossing_timeout: 20.0
+  tunnel_use_nav2: true
+  tunnel_timeout: 60.0

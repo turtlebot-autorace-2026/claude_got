@@ -1,0 +1,9 @@
+build/
+install/
+log/
+third_party/root/
+third_party/debs/
+__pycache__/
+*.pyc
+*:Zone.Identifier
+*.pdf

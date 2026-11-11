@@ -1,0 +1,36 @@
+# 차선 SLAM 공통 파라미터 (mode / map_prefix 등은 런치에서 지정)
+lane_slam:
+  ros__parameters:
+    camera_topic: /camera
+    camera_info_topic: /camera/camera_info
+    camera_frame: camera_optical_frame
+    use_tf_extrinsics: true      # TF(base_footprint→camera_optical_frame)로 외부파라미터 사용
+    # TF가 없을 때(실차 등) 사용할 카메라 장착값: base 기준 위치[m], 아래로 숙인 각 pitch[rad], yaw[rad]
+    cam_x: 0.076
+    cam_y: 0.0
+    cam_z: 0.135
+    cam_pitch: 0.5515
+    cam_yaw: 0.0394
+    ground_z: -0.010             # base_footprint 기준 지면 높이
+    ground_x_range: [0.12, 0.85] # IPM 사용 전방 범위[m]
+    ground_y_max: 0.6
+    # 차선 색 임계값(HSV, OpenCV 범위)
+    white_v_min: 170
+    white_s_max: 60
+    yellow_h_min: 18
+    yellow_h_max: 38
+    yellow_s_min: 90
+    yellow_v_min: 90
+    pixel_stride: 2
+    voxel: 0.015
+    # 파티클 필터
+    particles: 300
+    pf_gain: 25.0
+    lf_sigma: 0.03
+    min_points: 12
+    map_bounds: [-3.2, -0.8, 5.6, 5.6]   # 차선맵 범위 x0, y0, 폭, 높이 (map = 출발 위치 기준)
+    # 차선 검출기: yolo(turtle_ws lane_yolo26n_seg, BEV에서 분할) | hsv
+    lane_detector: yolo
+    yolo_device: ""              # '' 자동(TensorRT→CUDA→CPU), 'cuda', 'cpu'
+    yolo_conf: 0.4
+    bev_stride: 3                # YOLO 마스크 샘플 간격[BEV px]
