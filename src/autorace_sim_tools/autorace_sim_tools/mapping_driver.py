@@ -152,12 +152,13 @@ def main():
             rclpy.spin_once(node, timeout_sec=0.1)
         for _ in range(10):
             rclpy.spin_once(node, timeout_sec=0.1)
-    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+    except (KeyboardInterrupt, getattr(rclpy.executors, 'ExternalShutdownException', KeyboardInterrupt)):
         pass
     finally:
         node.publish(0.0, 0.0)
         node.destroy_node()
-        rclpy.try_shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

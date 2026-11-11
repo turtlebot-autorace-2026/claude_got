@@ -17,7 +17,7 @@ class CmdMux(Node):
     def __init__(self):
         super().__init__('cmd_mux')
         self.timeout = self.declare_parameter('timeout', 0.4).value
-        self.max_v = self.declare_parameter('max_linear', 0.3).value
+        self.max_v = self.declare_parameter('max_linear', 0.22).value   # TurtleBot3 Burger 최대 0.22 m/s
         self.max_w = self.declare_parameter('max_angular', 2.5).value
         self.selected = 'stop'
         self.last = {s: (None, Twist()) for s in SOURCES}
@@ -50,12 +50,13 @@ def main():
     node = CmdMux()
     try:
         rclpy.spin(node)
-    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+    except (KeyboardInterrupt, getattr(rclpy.executors, 'ExternalShutdownException', KeyboardInterrupt)):
         pass
     finally:
         node.pub.publish(Twist())
         node.destroy_node()
-        rclpy.try_shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

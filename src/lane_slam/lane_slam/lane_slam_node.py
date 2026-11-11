@@ -47,6 +47,10 @@ class LaneSlamNode(Node):
         self.cam_params = [P('cam_x', 0.076).value, P('cam_y', 0.0).value, P('cam_z', 0.135).value,
                            P('cam_pitch', 0.5515).value, P('cam_yaw', 0.0394).value]
         self.ground_z = P('ground_z', -0.010).value
+        # CameraInfo가 없을 때(실차 camera_ros는 /camera 영상만 발행) 사용할 내부 파라미터 [fx, fy, cx, cy]
+        # 기본값 = 보정(undistort) 후 640x480 /camera 영상(bag 기반, 시뮬레이션과 동일)
+        self.cam_intrinsics = list(P('cam_intrinsics', [426.355736, 536.586855, 324.860029, 287.506008]).value)
+        self.sensor_wait = P('sensor_wait', 3.0).value   # CameraInfo/TF를 기다릴 시간[s], 지나면 파라미터 사용
         self.x_range = list(P('ground_x_range', [0.12, 0.85]).value)
         self.y_max = P('ground_y_max', 0.6).value
         self.publish_tf = P('publish_tf', True).value
@@ -129,6 +133,7 @@ class LaneSlamNode(Node):
         self.create_timer(1.0 / 30.0, self.publish_tf_timer)
         self.create_timer(3.0 if self.mode == 'mapping' else 30.0, self.publish_map)
         self.K = None
+        self.first_image_t = None
         self.get_logger().info(f'lane_slam 시작: mode={self.mode}, map={self.map_prefix}')
 
     # ------------------------------------------------------------------ 초기화
@@ -153,8 +158,15 @@ class LaneSlamNode(Node):
     def _ensure_extractor(self, w, h):
         if self.extractor is not None:
             return True
+        if self.first_image_t is None:
+            self.first_image_t = self.get_clock().now()
+        waited = (self.get_clock().now() - self.first_image_t).nanoseconds * 1e-9 > self.sensor_wait
         if self.K is None:
-            return False
+            if not waited:
+                return False
+            fx, fy, cx, cy = self.cam_intrinsics
+            self.K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], float)
+            self.get_logger().warn(f'CameraInfo 없음 → cam_intrinsics 파라미터 사용 {self.cam_intrinsics}')
         T = None
         if self.use_tf_extrinsics:
             try:
@@ -169,7 +181,9 @@ class LaneSlamNode(Node):
                 tr = t.transform.translation
                 T[:3, 3] = (tr.x, tr.y, tr.z)
             except Exception:  # noqa: BLE001
-                return False
+                if not waited:
+                    return False
+                self.get_logger().warn(f'TF {self.base_frame}→{self.camera_frame} 없음 → cam_* 장착 파라미터 사용')
         if T is None:
             T = optical_extrinsic_from_params(*self.cam_params)
         proj = GroundProjector(self.K, T, w, h, self.ground_z, tuple(self.x_range), self.y_max)
@@ -342,14 +356,15 @@ def main():
     node = LaneSlamNode()
     try:
         rclpy.spin(node)
-    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+    except (KeyboardInterrupt, getattr(rclpy.executors, 'ExternalShutdownException', KeyboardInterrupt)):
         pass
     finally:
         if node.mode == 'mapping' and node.map_prefix:
             node.map.save(node.map_prefix)
             print(f'[lane_slam] 맵 저장: {node.map_prefix}')
         node.destroy_node()
-        rclpy.try_shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
