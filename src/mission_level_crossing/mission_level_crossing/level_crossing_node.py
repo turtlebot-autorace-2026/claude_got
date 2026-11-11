@@ -75,8 +75,8 @@ class LevelCrossingNode(Node):
         if coverage >= self.min_coverage and extent >= self.min_extent:
             # 가로로 넓고 납작하면 내려온 상태, 넓지만 세로로도 크면 움직이는 중(대각선)
             return ('closed' if height <= self.max_height else 'moving'), box
-        if coverage >= self.min_coverage * 0.5:
-            return 'moving', box
+        if coverage >= self.min_coverage * 0.5 and extent >= self.min_extent * 0.6:
+            return 'moving', box             # 대각선(내려오거나 올라가는 중). 좁은 세로 기둥(올라간 상태)은 제외
         return 'open', None
 
     def on_scan(self, msg):

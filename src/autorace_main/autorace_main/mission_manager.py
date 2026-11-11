@@ -227,13 +227,15 @@ class MissionManager(Node):
         yield from self.follow('to_crossing')
         self.stop()
         yield from self.wait(0.8)
-        if self.barrier == 'open':
+        if self.barrier != 'closed':
             # 정지 위치가 1번 센서 앞일 수 있음(센서 위치 임의·위치추정 오차) → 천천히 다가가다
             # 차단바가 움직이기 시작하면 즉시 정지
             self.detail = '차단바 앞 서행 접근'
+            init = self.barrier            # 시작부터 moving(오검출 가능)이면 '새로 움직임'만 정지 조건으로
             yield from self.follow('crossing_to_tunnel', speed=float(self.cfg.get('crossing_creep_speed', 0.05)),
                                    end_s=float(self.cfg.get('crossing_creep_dist', 0.12)),
-                                   stop_if=lambda: self.barrier != 'open')
+                                   stop_if=lambda: self.barrier == 'closed' or (
+                                       self.barrier == 'moving' and init != 'moving'))
             self.stop()
         t0 = self.now()
         closed_seen = False
